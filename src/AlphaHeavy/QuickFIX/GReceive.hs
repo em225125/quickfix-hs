@@ -76,7 +76,7 @@ instance (GRecvMessage a, GRecvMessage b) => GRecvMessage (a :*: b) where
       (Just a, Just b) -> Just (a :*: b)
       _ -> Nothing
 
-instance (Generic a, GGetMessageFields (Rep a), KnownNat n) => GRecvMessage (K1 c (Message n dir a)) where
+instance (Generic a, GGetMessageFields (Rep a), KnownNat n) => GRecvMessage (K1 c (Message n a)) where
   gRecvMessage ptr msgId
     | msgId == msgId' =
         Just . K1 . Message . to <$> gGetMessageFields ptr

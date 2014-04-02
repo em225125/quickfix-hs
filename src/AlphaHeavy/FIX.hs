@@ -18,7 +18,6 @@ module AlphaHeavy.FIX (
   Group(..),
   MarketLocalTime,
   Message(..),
-  MessageDirection(..),
   MonthYear,
   Price(..),
   Quantity(..),
@@ -42,7 +41,7 @@ newtype Field (n :: Nat) a = Field a
 newtype Group (n :: Nat) a = Group [a]
   deriving (Generic, Eq, Show)
 
-newtype Message (n :: Nat) (dir :: MessageDirection) a = Message a
+newtype Message (n :: Nat) a = Message a
   deriving (Generic, Eq, Show)
 
 newtype Price = Price Decimal
@@ -55,11 +54,6 @@ class FieldTag a where
   type FieldTagRep a :: *
   toFieldTagRep :: a -> FieldTagRep a
   fromFieldTagRep :: FieldTagRep a -> Maybe a
-
-data MessageDirection
-  = RequestDirection
-  | ResponseDirection
-    deriving (Show)
 
 data Exchange
   = Exchange_NASDAQ

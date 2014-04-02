@@ -30,7 +30,7 @@ sendMessage'
   :: forall a dir n . (Generic a, GSetMessageFields (Rep a), KnownNat n)
   => String
   -> String
-  -> Message n dir a
+  -> Message n a
   -> IO ()
 sendMessage' senderCompID targetCompID (FIX.Message msg) = do
   let msgId = chr . fromIntegral $ natVal (Proxy :: Proxy n)
@@ -55,7 +55,7 @@ instance (GSendMessage a, GSendMessage b) => GSendMessage (a :*: b) where
     gSendMessage sender target x
     gSendMessage sender target y
 
-instance (Generic a, GSetMessageFields (Rep a), KnownNat n) => GSendMessage (K1 c (Message n dir a)) where
+instance (Generic a, GSetMessageFields (Rep a), KnownNat n) => GSendMessage (K1 c (Message n a)) where
   gSendMessage sender target = sendMessage' sender target . unK1
 
 -- |
