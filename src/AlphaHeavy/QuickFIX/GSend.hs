@@ -8,10 +8,9 @@
 module AlphaHeavy.QuickFIX.GSend where
 
 import Control.Monad (forM_)
-import Data.Char (chr)
 import Data.Proxy (Proxy(..))
 import GHC.Generics
-import GHC.TypeLits (KnownNat, natVal)
+import GHC.TypeLits (KnownNat,KnownSymbol,natVal,symbolVal)
 
 import AlphaHeavy.FIX as FIX
 import AlphaHeavy.QuickFIX.Foreign
@@ -27,13 +26,13 @@ sendMessage
 sendMessage sender target = gSendMessage sender target . from
 
 sendMessage'
-  :: forall a dir n . (Generic a, GSetMessageFields (Rep a), KnownNat n)
+  :: forall a n . (Generic a, GSetMessageFields (Rep a), KnownSymbol n)
   => String
   -> String
   -> Message n a
   -> IO ()
 sendMessage' senderCompID targetCompID (FIX.Message msg) = do
-  let msgId = chr . fromIntegral $ natVal (Proxy :: Proxy n)
+  let msgId =  symbolVal (Proxy :: Proxy n)
   sendMessageWithWrapper senderCompID targetCompID msgId $ \ h ->
     gSetMessageFields h (from msg)
 
@@ -55,7 +54,7 @@ instance (GSendMessage a, GSendMessage b) => GSendMessage (a :*: b) where
     gSendMessage sender target x
     gSendMessage sender target y
 
-instance (Generic a, GSetMessageFields (Rep a), KnownNat n) => GSendMessage (K1 c (Message n a)) where
+instance (Generic a, GSetMessageFields (Rep a), KnownSymbol n) => GSendMessage (K1 c (Message n a)) where
   gSendMessage sender target = sendMessage' sender target . unK1
 
 -- |

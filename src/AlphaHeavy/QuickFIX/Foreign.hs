@@ -2,6 +2,7 @@
 
 module AlphaHeavy.QuickFIX.Foreign where
 
+import Control.Applicative ((<*))
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception (bracket, throwIO)
@@ -41,14 +42,15 @@ throwIfNotNull str =
 sendMessageWithWrapper
   :: String
   -> String
-  -> Char
+  -> String
   -> (QuickFIXMessagePtr -> IO ())
   -> IO ()
 sendMessageWithWrapper senderCompID targetCompID msgType fun =
   let body ptr =
         withCString senderCompID $ \ senderCompStr ->
-        withCString targetCompID $ \ targetCompStr -> do
-          res <- AlphaHeavy.QuickFIX.Foreign.sendMessageWith senderCompStr targetCompStr msgType ptr
+        withCString targetCompID $ \ targetCompStr ->
+        withCString msgType $ \ msgTypeStr -> do
+          res <- AlphaHeavy.QuickFIX.Foreign.sendMessageWith senderCompStr targetCompStr msgTypeStr ptr
           throwIfNotNull res
 
   in bracket
@@ -92,6 +94,11 @@ getStringFieldCPS msg fieldId = do
     (AlphaHeavy.QuickFIX.Foreign.getStringField msg fieldId)
   takeMVar mv
 
+getMessageType :: QuickFIXMessagePtr -> IO String
+getMessageType ptr = do
+  s <- getMessageTypeC ptr
+  peekCAString s <* free s
+
 foreign import ccall safe "QuickFIXThunks.h"
   runApplication :: StablePtr ConduitApp -> CString -> IO CString
 
@@ -105,7 +112,7 @@ foreign import ccall "wrapper"
   mkMessageCallback :: (QuickFIXMessagePtr -> IO ()) -> IO (FunPtr (QuickFIXMessagePtr -> IO ()))
 
 foreign import ccall "QuickFIXThunks.h"
-  sendMessageWith :: CString -> CString -> Char -> FunPtr (QuickFIXMessagePtr -> IO ()) -> IO CString
+  sendMessageWith :: CString -> CString -> CString -> FunPtr (QuickFIXMessagePtr -> IO ()) -> IO CString
 
 foreign import ccall "QuickFIXThunks.h"
   decodeMessageWith :: CString -> FunPtr (QuickFIXMessagePtr -> IO ()) -> IO CString
@@ -144,7 +151,7 @@ foreign import ccall "QuickFIXThunks.h"
   getStringField :: QuickFIXMessagePtr -> Int32 -> FunPtr (CString -> IO ()) -> IO ()
 
 foreign import ccall "QuickFIXThunks.h"
-  getMessageType :: QuickFIXMessagePtr -> IO Char
+  getMessageTypeC :: QuickFIXMessagePtr -> IO CString
 
 foreign import ccall "QuickFIXThunks.h"
   sessionLogon :: SessionID -> IO CString

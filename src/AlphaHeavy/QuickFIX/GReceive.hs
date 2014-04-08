@@ -12,10 +12,9 @@ import Control.Concurrent.MVar
 import Control.Monad -- (forM_)
 import Control.Exception (SomeException, catch, throwIO)
 import qualified Data.ByteString as B
-import Data.Char (chr)
 import Data.Proxy (Proxy (..))
 import GHC.Generics
-import GHC.TypeLits (KnownNat, natVal)
+import GHC.TypeLits (KnownNat,KnownSymbol,natVal,symbolVal)
 
 import AlphaHeavy.FIX as FIX
 import AlphaHeavy.QuickFIX.Foreign
@@ -31,7 +30,7 @@ receiveMessage ptr = do
   mmsg <- fmap to <$> gRecvMessage ptr msgId
   case mmsg of
     Just msg -> return $! msg
-    Nothing  -> throwIO . UnsupportedMessageType $ [msgId]
+    Nothing  -> throwIO . UnsupportedMessageType $ msgId
 
 decodeMessage
   :: (Generic a, GRecvMessage (Rep a))
@@ -52,7 +51,7 @@ decodeMessage msgBS = do
 -- Entry point, we're looking for 'Message' constructors with the message id
 -- and sending direction encoded as type parameters
 class GRecvMessage (f :: * -> *) where
-  gRecvMessage :: QuickFIXMessagePtr -> Char -> IO (Maybe (f a))
+  gRecvMessage :: QuickFIXMessagePtr -> String -> IO (Maybe (f a))
 
 instance GRecvMessage f => GRecvMessage (M1 i c f) where
   gRecvMessage ptr msgId = fmap M1 <$> gRecvMessage ptr msgId
@@ -76,12 +75,12 @@ instance (GRecvMessage a, GRecvMessage b) => GRecvMessage (a :*: b) where
       (Just a, Just b) -> Just (a :*: b)
       _ -> Nothing
 
-instance (Generic a, GGetMessageFields (Rep a), KnownNat n) => GRecvMessage (K1 c (Message n a)) where
+instance (Generic a, GGetMessageFields (Rep a), KnownSymbol n) => GRecvMessage (K1 c (Message n a)) where
   gRecvMessage ptr msgId
     | msgId == msgId' =
         Just . K1 . Message . to <$> gGetMessageFields ptr
     | otherwise = return Nothing
-    where msgId' = chr . fromIntegral $ natVal (Proxy :: Proxy n)
+    where msgId' = symbolVal (Proxy :: Proxy n)
 
 -- |
 -- Message field iteration. Find each 'Field' within the message and its

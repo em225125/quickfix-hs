@@ -30,7 +30,7 @@ import Control.Exception (Exception)
 import Data.Decimal (Decimal)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
-import GHC.TypeLits (Nat)
+import GHC.TypeLits (Nat,Symbol)
 
 newtype Enumeration (n :: Nat) a = Enumeration a
   deriving (Generic, Eq, Show)
@@ -41,7 +41,7 @@ newtype Field (n :: Nat) a = Field a
 newtype Group (n :: Nat) a = Group [a]
   deriving (Generic, Eq, Show)
 
-newtype Message (n :: Nat) a = Message a
+newtype Message (n :: Symbol) a = Message a
   deriving (Generic, Eq, Show)
 
 newtype Price = Price Decimal

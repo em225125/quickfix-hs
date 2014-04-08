@@ -103,7 +103,7 @@ fieldTyQName (field@Field{}, _)
 fieldTyQName (field@Group{}, _) = Qual (ModuleName "AlphaHeavy.FIX") $ Ident "Group"
 
 data Message = Message
-  { messageType :: Char
+  { messageType :: String
   , messageName :: String
   , messageCategory :: String
   , messageFields :: [(Field, Required)]
@@ -176,12 +176,9 @@ parseGroups :: (String -> Field) -> String -> Node String String -> [(Field, Req
 parseGroups fieldMap msgName node = map (parseGroup fieldMap msgName) groups
   where groups = findChildren "group" node
 
-parseMessage :: (String -> Field) -> Node String String -> Maybe Message
-parseMessage fieldMap msg@(Element "message" attr _) = fmap (\ ty' -> Message ty' name cat merged) ty
-  where ty = case lookup "msgtype" attr of
-               Just [val] -> Just val
-               Just val   -> trace ("unsupported multichar message type: "++name) Nothing
-               Nothing    -> trace ("malformed record: "++show msg) Nothing
+parseMessage :: (String -> Field) -> Node String String -> Message
+parseMessage fieldMap msg@(Element "message" attr _) = Message ty name cat merged
+  where ty = maybe (error $ "malformed record: " ++ show msg) id (lookup "msgtype" attr)
         Just name    = lookup "name" attr
         Just cat     = lookup "msgcat" attr
         fields       = sortBy fieldSort $ parseReqdFields fieldMap msg
@@ -196,7 +193,7 @@ parseFIXDocument root@(Element "fix" _ _) = FIX header messages' trailer compone
   where Just header      = liftM (parseHeader fieldLookup) $ findChild "header" root
         Just trailer     = liftM (parseTrailer fieldLookup) $ findChild "trailer" root
         Just messages    = findChild "messages" root
-        messages'        = catMaybes $ map (parseMessage fieldLookup) $ findChildren "message" messages
+        messages'        = map (parseMessage fieldLookup) $ findChildren "message" messages
         components       = Components
         Just fields      = findChild "fields" root
         fields'          = map parseField $ findChildren "field" fields
@@ -502,6 +499,21 @@ generateMaybeLensClassDecl field@Field{fieldName} = decl where
   tyVarA  = TyVar (Ident "a")
   context = []
 
+generateMsgTy :: Message -> Decl
+generateMsgTy (Message msgTy msgName _ _) = TypeDecl srcLoc name [] ty where
+  name = Ident $ msgName ++ "Message"
+  msgCon = TyCon $ Qual (ModuleName "AlphaHeavy.FIX") $ Ident "Message"
+  symbolCon = TyCon . UnQual . Ident $ show msgTy
+  msgTyCon = TyCon . UnQual $ Ident msgName
+  ty = foldl1 TyApp [msgCon, symbolCon, msgTyCon]
+
+generateMsgWrapper :: Messages -> Decl
+generateMsgWrapper msgs = DataDecl srcLoc DataType [] (Ident "MessageWrapper") [] qcds derived where
+  msgName = Ident . (++ "Message") . messageName
+  qcd x = QualConDecl srcLoc [] [] $ ConDecl x [BangedTy . TyCon $ UnQual x]
+  qcds = map (qcd . msgName) msgs
+  derived = map (flip (,) [] . UnQual . Ident) ["Generic","Show"]
+
 generateMessageModule :: FIX -> String -> Module
 generateMessageModule (FIX _ messages _ _ fields) version = Module srcLoc modName pragmas warningText exports imports decls
   where modName       = ModuleName $ "AlphaHeavy.FIX.FIX" ++ version ++ ".Types"
@@ -513,10 +525,12 @@ generateMessageModule (FIX _ messages _ _ fields) version = Module srcLoc modNam
         groups        = generateGroups messages
         fieldEnums    = [i | i@(Field _ _ _ (FIXEnum _ _ (_:_))) <- fields]
         fields'       = concatMap generateFieldEnum' fieldEnums
-        decls         = messagesDecl ++ groups ++ fields' ++ newTypes ++ lensDecl
+        decls         = messagesDecl ++ msgTypes ++ [wrapperDecl] ++ groups ++ fields' ++ newTypes ++ lensDecl
         ignoreNames n = not (n `elem` ["Price", "Currency"])
         newTypes      = concat [generateNewTypeDecl f | f@Field{fieldName, fieldType} <- fields, isPrimitiveTy fieldType, ignoreNames fieldName]
         messagesDecl  = generateMessagesDecl messages
+        msgTypes      = map generateMsgTy messages
+        wrapperDecl   = generateMsgWrapper messages
         lensDecl      = generateLensClassDecls fields
 
 generateMessageCtorDecl :: Message -> [Decl]
@@ -566,7 +580,7 @@ main = do
                 factories = generateMessageFactories tree version
                 ppr = prettyPrintStyleMode style defaultMode
 
-            putStrLn (ppr types)
+            -- putStrLn (ppr types)
             writeFile ("./src/AlphaHeavy/FIX/FIX" ++ version ++ "/Types.hs") $ ppr types
             writeFile ("./src/AlphaHeavy/FIX/FIX" ++ version ++ "/Factory.hs") $ ppr factories
             return ()

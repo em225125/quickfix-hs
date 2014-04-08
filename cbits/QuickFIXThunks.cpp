@@ -62,11 +62,11 @@ private:
 };
 
 extern "C"
-HsChar getMessageType(const FIX::Message& msg)
+char* getMessageTypeC(const FIX::Message& msg)
 {
     FIX::MsgType msgType;
     msg.getHeader().getField(msgType);
-    return msgType.getValue()[0];
+    return strdup(msgType.getValue().c_str());
 }
 
 extern "C"
@@ -137,12 +137,11 @@ extern "C"
 char* sendMessageWith(
     const char* senderCompStr,
     const char* targetCompStr,
-    HsChar msgTypeChar,
+    const char* msgTypeStr,
     void (*cont)(FIX::Message&))
 {
     try
     {
-        const char msgTypeStr[2] = { msgTypeChar, '\0' };
         FIX::MsgType msgtype(msgTypeStr);
         FIX42::Message msg(msgtype);
         cont(msg);
